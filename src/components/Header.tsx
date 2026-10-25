@@ -51,10 +51,10 @@ export const Header: React.FC<HeaderProps> = ({ onOpenAdvisorModal, onNavigateRo
           {/* LEFT: Official 3D Purple Arrow Logo + Wordmark + Subtitle     */}
           {/* ============================================================== */}
           <div
-            className="flex items-center gap-3 cursor-pointer select-none group"
+            className="flex items-center gap-3 cursor-pointer select-none group transition-transform duration-160 ease-out active:scale-[0.97]"
             onClick={() => onNavigateRoute('app')}
           >
-            <div className="w-11 h-11 rounded-2xl bg-white border border-[#E4D9CC] shadow-clay-sm p-1.5 flex items-center justify-center overflow-hidden transition-transform duration-300 group-hover:scale-105">
+            <div className="w-11 h-11 rounded-2xl bg-white border border-[#E4D9CC] shadow-clay-sm p-1.5 flex items-center justify-center overflow-hidden transition-all duration-200 group-hover:scale-105 group-hover:shadow-clay-md">
               <img
                 src="./aarthik-logo.png"
                 alt="Aarthik.ai 3D Purple Ascending Rupee Arrow"

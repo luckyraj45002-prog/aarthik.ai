@@ -1,0 +1,23 @@
+{
+  "name": "Aarthik.ai — Diagnostic Financial Co-Pilot",
+  "short_name": "Aarthik.ai",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#F8F4EC",
+  "theme_color": "#7C3AED",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "./aarthik-logo-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "./aarthik-logo-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
