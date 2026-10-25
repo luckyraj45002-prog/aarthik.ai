@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useFinancialStore } from '../context/FinancialContext';
+import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
 import {
   Lock,
   Mail,
@@ -10,6 +11,7 @@ import {
   Sparkles,
   ArrowRight,
   X,
+  Loader2,
 } from 'lucide-react';
 
 interface AuthPagesProps {
@@ -21,11 +23,12 @@ export const AuthPages: React.FC<AuthPagesProps> = ({
   initialView = 'login',
   onNavigateRoute,
 }) => {
-  const { enterDemoMode, updateProfile, addToast } = useFinancialStore();
+  const { enterDemoMode, exitDemoMode, updateProfile, addToast } = useFinancialStore();
 
   const [view, setView] = useState<'login' | 'signup'>(initialView);
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
 
   // Forgot password modal state
   const [forgotPasswordOpen, setForgotPasswordOpen] = useState(false);
@@ -56,13 +59,53 @@ export const AuthPages: React.FC<AuthPagesProps> = ({
 
   const passwordStrength = getPasswordStrength(signupPassword);
 
-  const handleLoginSubmit = (e: React.FormEvent) => {
+  const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    enterDemoMode();
-    onNavigateRoute('app');
+    if (isSupabaseConfigured) {
+      try {
+        setIsLoading(true);
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: loginIdentifier,
+          password: loginPassword,
+        });
+        if (error) {
+          addToast({
+            type: 'error',
+            title: 'Authentication Failed',
+            description: error.message,
+          });
+          setIsLoading(false);
+          return;
+        }
+        exitDemoMode();
+        onNavigateRoute('app');
+        addToast({
+          type: 'success',
+          title: `Welcome back!`,
+          description: 'Loaded your encrypted cloud financial vault.',
+        });
+      } catch (err: any) {
+        addToast({
+          type: 'error',
+          title: 'Sign In Error',
+          description: err.message || 'An unexpected error occurred.',
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    } else {
+      // Offline fallback / Demo Mode
+      enterDemoMode();
+      onNavigateRoute('app');
+      addToast({
+        type: 'info',
+        title: 'Signed in (Offline Demo Mode)',
+        description: 'Using encrypted client-side sandbox.',
+      });
+    }
   };
 
-  const handleSignupSubmit = (e: React.FormEvent) => {
+  const handleSignupSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     // Validate +91 phone
     const phoneRegex = /^(\+91[\-\s]?)?[0]?(91)?[6789]\d{9}$/;
@@ -84,13 +127,56 @@ export const AuthPages: React.FC<AuthPagesProps> = ({
       return;
     }
 
-    updateProfile({ name: fullName });
-    onNavigateRoute('app');
-    addToast({
-      type: 'success',
-      title: `Account Created for ${fullName}!`,
-      description: 'Your private, encrypted financial vault is initialized.',
-    });
+    if (isSupabaseConfigured) {
+      try {
+        setIsLoading(true);
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password: signupPassword,
+          options: {
+            data: {
+              full_name: fullName,
+              phone: mobileNumber,
+              role,
+            },
+          },
+        });
+        if (error) {
+          addToast({
+            type: 'error',
+            title: 'Sign Up Failed',
+            description: error.message,
+          });
+          setIsLoading(false);
+          return;
+        }
+        updateProfile({ name: fullName });
+        exitDemoMode();
+        onNavigateRoute('app');
+        addToast({
+          type: 'success',
+          title: `Account Created for ${fullName}!`,
+          description: 'Zero-Knowledge encrypted financial vault initialized on Supabase.',
+        });
+      } catch (err: any) {
+        addToast({
+          type: 'error',
+          title: 'Registration Error',
+          description: err.message || 'An unexpected error occurred.',
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    } else {
+      updateProfile({ name: fullName });
+      exitDemoMode();
+      onNavigateRoute('app');
+      addToast({
+        type: 'success',
+        title: `Account Created for ${fullName}!`,
+        description: 'Your private, encrypted financial vault is initialized.',
+      });
+    }
   };
 
   const handleForgotSubmit = (e: React.FormEvent) => {
@@ -111,9 +197,12 @@ export const AuthPages: React.FC<AuthPagesProps> = ({
           <div className="w-16 h-16 mx-auto rounded-3xl bg-white border border-[#E2D8CA] shadow-clay-sm p-2 flex items-center justify-center">
             <img src="./aarthik-logo.png" alt="Aarthik.ai Logo" className="w-full h-full object-contain" />
           </div>
-          <h2 className="text-3xl font-black text-[#111827]">
-            Aarthik<span className="text-[#6D28D9]">.ai</span>
+          <h2 className="text-3xl font-black text-[#0F172A]">
+            Aarthik<span className="text-[#7C3AED]">.ai</span>
           </h2>
+          <span className="text-[10px] tracking-wider uppercase font-bold text-[#7C3AED] block">
+            DIAGNOSTIC FINANCIAL CO-PILOT
+          </span>
           <p className="text-xs font-semibold text-warm-600">
             {view === 'login'
               ? 'Access your encrypted diagnostic roadmap'
@@ -232,10 +321,20 @@ export const AuthPages: React.FC<AuthPagesProps> = ({
 
               <button
                 type="submit"
-                className="w-full clay-btn-primary py-3 text-xs font-black flex items-center justify-center gap-2"
+                disabled={isLoading}
+                className="w-full clay-btn-primary py-3 text-xs font-black flex items-center justify-center gap-2 disabled:opacity-50"
               >
-                <span>Sign In to Financial Co-Pilot</span>
-                <ArrowRight className="w-4 h-4" />
+                {isLoading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Connecting to Secure Vault...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Sign In to Financial Co-Pilot</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
               </button>
 
               {/* Social Sign-In Buttons */}
@@ -457,10 +556,20 @@ export const AuthPages: React.FC<AuthPagesProps> = ({
 
               <button
                 type="submit"
-                className="w-full clay-btn-primary py-3 text-xs font-black flex items-center justify-center gap-2"
+                disabled={isLoading}
+                className="w-full clay-btn-primary py-3 text-xs font-black flex items-center justify-center gap-2 disabled:opacity-50"
               >
-                <span>Complete Registration &amp; Start Intake</span>
-                <ArrowRight className="w-4 h-4" />
+                {isLoading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Creating Encrypted Vault...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Complete Registration &amp; Start Intake</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
               </button>
             </form>
           )}

@@ -20,9 +20,14 @@ export const Footer: React.FC<FooterProps> = ({ onNavigateRoute }) => {
                   className="w-full h-full object-contain"
                 />
               </div>
-              <span className="text-xl font-black text-[#111827]">
-                Aarthik<span className="text-[#6D28D9]">.ai</span>
-              </span>
+              <div className="flex flex-col">
+                <span className="text-xl font-black text-[#0F172A]">
+                  Aarthik<span className="text-[#7C3AED]">.ai</span>
+                </span>
+                <span className="text-[9px] tracking-wider uppercase font-bold text-[#7C3AED] -mt-0.5">
+                  DIAGNOSTIC FINANCIAL CO-PILOT
+                </span>
+              </div>
             </div>
             <p className="text-xs text-warm-600 leading-relaxed font-medium">
               Diagnostic-first financial planning and literacy co-pilot for Indian salaried professionals. Rigid deterministic math, zero commissions, zero broker incentives.

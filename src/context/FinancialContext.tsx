@@ -1,4 +1,6 @@
-import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useRef } from 'react';
+import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
+import { encryptZeroKnowledge, decryptZeroKnowledge, EncryptedPayload } from '../lib/zeroKnowledgeCrypto';
 
 export interface HouseholdMemberItem {
   id: string;
@@ -81,6 +83,13 @@ interface FinancialContextType {
   enterDemoMode: () => void;
   exitDemoMode: () => void;
   resetDemoData: () => void;
+  resetToDefault: () => void;
+
+  // Supabase Cloud & Zero-Knowledge Security
+  isCloudSyncActive: boolean;
+  cloudSyncStatus: 'synced' | 'syncing' | 'offline_demo' | 'error';
+  authUserEmail: string | null;
+  signOutUser: () => Promise<void>;
 
   // Real-time Calculated Household Balance Sheet (Derived dynamically)
   dynamicHouseholdList: HouseholdMemberItem[];
@@ -220,6 +229,118 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   // UI state
   const [activeTab, setActiveTab] = useState<string>('profile');
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
+
+  // Supabase Auth & Zero-Knowledge Cloud Sync
+  const [authUser, setAuthUser] = useState<any>(null);
+  const [cloudSyncStatus, setCloudSyncStatus] = useState<'synced' | 'syncing' | 'offline_demo' | 'error'>(
+    isDemoMode ? 'offline_demo' : 'synced'
+  );
+  const isCloudSyncActive = Boolean(!isDemoMode && isSupabaseConfigured && authUser);
+  const authUserEmail = authUser?.email || (isDemoMode ? 'rohit.kumar@techcorp.in' : 'user@aarthik.ai');
+  const syncTimeoutRef = useRef<any>(null);
+
+  // Initialize Supabase Auth listener
+  useEffect(() => {
+    if (!isSupabaseConfigured) {
+      if (isDemoMode) setCloudSyncStatus('offline_demo');
+      return;
+    }
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setAuthUser(session?.user ?? null);
+      if (session?.user && !isDemoMode) {
+        setCloudSyncStatus('synced');
+        loadEncryptedCloudProfile(session.user.id);
+      }
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setAuthUser(session?.user ?? null);
+      if (session?.user && !isDemoMode) {
+        setCloudSyncStatus('synced');
+        loadEncryptedCloudProfile(session.user.id);
+      } else if (isDemoMode) {
+        setCloudSyncStatus('offline_demo');
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [isDemoMode]);
+
+  // Load Zero-Knowledge Encrypted profile from Supabase
+  const loadEncryptedCloudProfile = async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('encrypted_data, iv, salt')
+        .eq('id', userId)
+        .single();
+
+      if (data && !error) {
+        const payload: EncryptedPayload = {
+          ciphertext: data.encrypted_data,
+          iv: data.iv,
+          salt: data.salt,
+          version: 1,
+        };
+        const decrypted = await decryptZeroKnowledge<{
+          profile: ProfileData;
+          extraHousehold: HouseholdMemberItem[];
+        }>(payload, userId);
+
+        if (decrypted?.profile) {
+          setProfile(decrypted.profile);
+        }
+        if (decrypted?.extraHousehold) {
+          setExtraHouseholdItems(decrypted.extraHousehold);
+        }
+      }
+    } catch (err) {
+      console.warn('Could not decrypt cloud payload, falling back to local cache', err);
+    }
+  };
+
+  // Debounced Zero-Knowledge Encrypted Save to Supabase
+  const syncToCloudEncrypted = (updatedProfile: ProfileData, household: HouseholdMemberItem[]) => {
+    if (!isCloudSyncActive || !authUser?.id) return;
+
+    if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
+
+    setCloudSyncStatus('syncing');
+
+    syncTimeoutRef.current = setTimeout(async () => {
+      try {
+        const payloadToEncrypt = {
+          profile: updatedProfile,
+          extraHousehold: household,
+          updatedAt: new Date().toISOString(),
+        };
+
+        const encrypted = await encryptZeroKnowledge(payloadToEncrypt, authUser.id);
+
+        const { error } = await supabase.from('profiles').upsert({
+          id: authUser.id,
+          encrypted_data: encrypted.ciphertext,
+          iv: encrypted.iv,
+          salt: encrypted.salt,
+          client_version: 1,
+          updated_at: new Date().toISOString(),
+        });
+
+        if (error) {
+          console.error('Supabase sync error:', error);
+          setCloudSyncStatus('error');
+        } else {
+          setCloudSyncStatus('synced');
+        }
+      } catch (e) {
+        console.error('Failed to encrypt zero-knowledge payload:', e);
+        setCloudSyncStatus('error');
+      }
+    }, 800);
+  };
 
   // Persist mode and state
   useEffect(() => {
@@ -422,10 +543,11 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   // =========================================================================
 
   const updateProfile = (updated: Partial<ProfileData>) => {
-    setProfile((prev) => ({
-      ...prev,
-      ...updated,
-    }));
+    setProfile((prev) => {
+      const next = { ...prev, ...updated };
+      syncToCloudEncrypted(next, extraHouseholdItems);
+      return next;
+    });
     addToast({
       type: 'success',
       title: 'Profile Updated & Solvers Recalculated! ⚡',
@@ -433,7 +555,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     });
   };
 
-  const resetDemoData = () => {
+  const resetToDefault = () => {
     setProfile(ROHIT_DEMO_PROFILE);
     setExtraHouseholdItems(INITIAL_EXTRA_HOUSEHOLD);
     setEmiPurchaseAmount(500000);
@@ -456,14 +578,35 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setMacroEventKey('crude-oil');
     setAdvisorVerified(false);
     setDossierDispatched(false);
-    localStorage.removeItem(`${DEMO_STORE_KEY}_profile`);
-    localStorage.removeItem(`${DEMO_STORE_KEY}_extra_household`);
-    localStorage.removeItem(`${DEMO_STORE_KEY}_impulse`);
-    localStorage.removeItem(`${DEMO_STORE_KEY}_gateway`);
+    localStorage.removeItem(`${activeStorageKey}_profile`);
+    localStorage.removeItem(`${activeStorageKey}_extra_household`);
+    localStorage.removeItem(`${activeStorageKey}_impulse`);
+    localStorage.removeItem(`${activeStorageKey}_gateway`);
+    syncToCloudEncrypted(ROHIT_DEMO_PROFILE, INITIAL_EXTRA_HOUSEHOLD);
     addToast({
       type: 'info',
-      title: 'Demo Variables Reverted to Baseline',
-      description: 'Rohit Kumar’s canonical figures (₹4L income, ₹2.55L surplus, ₹4.5L savings) restored.',
+      title: 'Reset to Default Baseline',
+      description: 'All financial figures re-initialized to standard canonical baseline.',
+    });
+  };
+
+  const resetDemoData = resetToDefault;
+
+  const signOutUser = async () => {
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.auth.signOut();
+      } catch (err) {
+        console.warn('Sign out error:', err);
+      }
+    }
+    setAuthUser(null);
+    setIsDemoMode(true);
+    setCloudSyncStatus('offline_demo');
+    addToast({
+      type: 'info',
+      title: 'Signed Out',
+      description: 'Switched to offline demo sandbox.',
     });
   };
 
@@ -680,6 +823,11 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         enterDemoMode,
         exitDemoMode,
         resetDemoData,
+        resetToDefault,
+        isCloudSyncActive,
+        cloudSyncStatus,
+        authUserEmail,
+        signOutUser,
 
         dynamicHouseholdList,
         totalHouseholdIncome,

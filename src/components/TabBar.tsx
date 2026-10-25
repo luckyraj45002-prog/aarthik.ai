@@ -85,7 +85,7 @@ export const TabBar: React.FC = () => {
               onClick={() => setActiveTab(tab.id)}
               className={`flex-shrink-0 flex items-center gap-2.5 px-4 py-2.5 rounded-2xl transition-all select-none text-left ${
                 isActive
-                  ? 'bg-gradient-to-r from-purple-700 to-warm-900 text-white shadow-clay-btn scale-[1.02]'
+                  ? 'bg-[#7C3AED] text-white shadow-clay-btn scale-[1.02]'
                   : 'bg-white hover:bg-[#FAF6F0] text-warm-800 border border-[#E4DACF] shadow-clay-sm hover:scale-[1.01]'
               }`}
             >
