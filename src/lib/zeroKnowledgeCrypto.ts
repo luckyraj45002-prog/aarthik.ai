@@ -107,5 +107,10 @@ export async function decryptZeroKnowledge<T>(payload: EncryptedPayload, secretK
 
   const dec = new TextDecoder();
   const jsonString = dec.decode(decryptedBuffer);
-  return JSON.parse(jsonString) as T;
+  try {
+    return JSON.parse(jsonString) as T;
+  } catch (err) {
+    console.warn('[CRYPTO] Decrypted payload corrupted, failed to parse JSON:', err);
+    throw new Error('Failed to parse decrypted payload.');
+  }
 }

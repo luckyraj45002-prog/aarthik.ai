@@ -126,7 +126,7 @@ export function calculateTimeMachineImpact(
     // iPhone preset: ₹12,500/mo EMI (12 months tenure)
     const emi = 12500;
     const newNeeds = currentNeeds + emi;
-    const remainingMonths = Number((currentSavings / newNeeds).toFixed(1));
+    const remainingMonths = newNeeds > 0 ? Number((currentSavings / newNeeds).toFixed(1)) : 0;
     return {
       purchaseAmount: 150000,
       tenureMonths: 12,
@@ -169,7 +169,7 @@ export function calculateTimeMachineImpact(
   // If upfront downpayment was 20%
   const upfrontCash = Math.round(purchaseAmount * 0.2);
   const remainingSavings = Math.max(50000, currentSavings - upfrontCash);
-  const remainingMonths = Number((remainingSavings / newNeeds).toFixed(1));
+  const remainingMonths = newNeeds > 0 ? Number((remainingSavings / newNeeds).toFixed(1)) : 0;
 
   // House down payment goal is ₹60 Lakh in 4 years (48 months)
   // Needed per month = 60,00,000 / 48 = 1,25,000

@@ -13,9 +13,10 @@ import { HouseholdModule } from './pages/HouseholdModule';
 import { GatewayModule } from './pages/GatewayModule';
 import { ImpulseGuardModule } from './pages/ImpulseGuardModule';
 import { MacroModule } from './pages/MacroModule';
-import { ExpertPlanModule } from './pages/ExpertPlanModule';
+import { PersonalizedPlanModule } from './pages/PersonalizedPlanModule';
 
 import { AuthPages } from './pages/AuthPages';
+import { ProtectedRoute } from './components/ProtectedRoute';
 import { PrivacyPolicyPage } from './pages/PrivacyPolicyPage';
 import { TermsAndConditionsPage } from './pages/TermsAndConditionsPage';
 import { NotFoundPage } from './pages/NotFoundPage';
@@ -95,19 +96,21 @@ export const App: React.FC = () => {
       return <NotFoundPage onNavigateRoute={(route) => navigateTo(route)} />;
     }
 
-    // Default Main App Dashboard
+    // Default Main App Dashboard (Protected Route)
     return (
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {activeTab === 'profile' && <ProfileModule />}
-        {activeTab === 'time-machine' && <TimeMachineModule />}
-        {activeTab === 'household' && <HouseholdModule />}
-        {activeTab === 'gateway' && <GatewayModule />}
-        {activeTab === 'impulse-guard' && <ImpulseGuardModule />}
-        {activeTab === 'macro' && <MacroModule />}
-        {activeTab === 'expert-plan' && (
-          <ExpertPlanModule onOpenAdvisorModal={() => setIsAdvisorModalOpen(true)} />
-        )}
-      </main>
+      <ProtectedRoute onNavigateLogin={() => navigateTo('login')}>
+        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          {activeTab === 'profile' && <ProfileModule />}
+          {activeTab === 'time-machine' && <TimeMachineModule />}
+          {activeTab === 'household' && <HouseholdModule />}
+          {activeTab === 'gateway' && <GatewayModule />}
+          {activeTab === 'impulse-guard' && <ImpulseGuardModule />}
+          {activeTab === 'macro' && <MacroModule />}
+          {(activeTab === 'personalized-plan' || activeTab === 'expert-plan') && (
+            <PersonalizedPlanModule onOpenAdvisorModal={() => setIsAdvisorModalOpen(true)} />
+          )}
+        </main>
+      </ProtectedRoute>
     );
   };
 

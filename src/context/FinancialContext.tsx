@@ -163,25 +163,46 @@ const FinancialContext = createContext<FinancialContextType | undefined>(undefin
 const DEMO_STORE_KEY = 'aarthik_demo_store_v2';
 const USER_STORE_KEY = 'aarthik_real_user_state_v2';
 
+function safeGetStorageJSON<T>(key: string, fallback: T): T {
+  try {
+    const saved = localStorage.getItem(key);
+    if (!saved || saved === 'undefined' || saved === 'null') return fallback;
+    const parsed = JSON.parse(saved);
+    return parsed !== null && typeof parsed === 'object' ? (parsed as T) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function safeSetStorage(key: string, value: string): void {
+  try {
+    localStorage.setItem(key, value);
+  } catch (err) {
+    console.warn('[STORAGE] Failed to persist key to localStorage:', key, err);
+  }
+}
+
 export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isDemoMode, setIsDemoMode] = useState<boolean>(() => {
-    const saved = localStorage.getItem('aarthik_mode');
-    return saved !== null ? saved === 'demo' : true;
+    try {
+      const saved = localStorage.getItem('aarthik_mode');
+      return saved !== null ? saved === 'demo' : true;
+    } catch {
+      return true;
+    }
   });
 
   const activeStorageKey = isDemoMode ? DEMO_STORE_KEY : USER_STORE_KEY;
 
-  // Profile state
-  const [profile, setProfile] = useState<ProfileData>(() => {
-    const saved = localStorage.getItem(`${activeStorageKey}_profile`);
-    return saved ? JSON.parse(saved) : ROHIT_DEMO_PROFILE;
-  });
+  // Profile state - Protected against corrupted storage & SyntaxErrors
+  const [profile, setProfile] = useState<ProfileData>(() =>
+    safeGetStorageJSON(`${activeStorageKey}_profile`, ROHIT_DEMO_PROFILE)
+  );
 
-  // Extra Household Items state
-  const [extraHouseholdItems, setExtraHouseholdItems] = useState<HouseholdMemberItem[]>(() => {
-    const saved = localStorage.getItem(`${activeStorageKey}_extra_household`);
-    return saved ? JSON.parse(saved) : INITIAL_EXTRA_HOUSEHOLD;
-  });
+  // Extra Household Items state - Protected
+  const [extraHouseholdItems, setExtraHouseholdItems] = useState<HouseholdMemberItem[]>(() =>
+    safeGetStorageJSON(`${activeStorageKey}_extra_household`, INITIAL_EXTRA_HOUSEHOLD)
+  );
 
   // Time Machine state
   const [emiPurchaseAmount, setEmiPurchaseAmount] = useState<number>(500000);
@@ -189,32 +210,26 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [avoidedImpulseTotal, setAvoidedImpulseTotal] = useState<number>(0);
   const [savedMonthsBanner, setSavedMonthsBanner] = useState<string | null>(null);
 
-  // Impulse Guard state
-  const [impulseState, setImpulseState] = useState<ImpulseGuardState>(() => {
-    const saved = localStorage.getItem(`${activeStorageKey}_impulse`);
-    return saved
-      ? JSON.parse(saved)
-      : {
-          leisureSpent: 8600,
-          leisureLimit: 12000,
-          ordersThisWeek: 6,
-          pendingOrderAmount: 800,
-          cookedAtHomeCount: 3,
-        };
-  });
+  // Impulse Guard state - Protected
+  const [impulseState, setImpulseState] = useState<ImpulseGuardState>(() =>
+    safeGetStorageJSON(`${activeStorageKey}_impulse`, {
+      leisureSpent: 8600,
+      leisureLimit: 12000,
+      ordersThisWeek: 6,
+      pendingOrderAmount: 800,
+      cookedAtHomeCount: 3,
+    })
+  );
 
-  // Gateway Quiz state
-  const [gatewayState, setGatewayState] = useState<GatewayQuizState>(() => {
-    const saved = localStorage.getItem(`${activeStorageKey}_gateway`);
-    return saved
-      ? JSON.parse(saved)
-      : {
-          currentStep: 1,
-          answers: {},
-          completed: false,
-          passed: false,
-        };
-  });
+  // Gateway Quiz state - Protected
+  const [gatewayState, setGatewayState] = useState<GatewayQuizState>(() =>
+    safeGetStorageJSON(`${activeStorageKey}_gateway`, {
+      currentStep: 1,
+      answers: {},
+      completed: false,
+      passed: false,
+    })
+  );
 
   // Macro event
   const [macroEventKey, setMacroEventKey] = useState<string>('crude-oil');
@@ -246,13 +261,19 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       return;
     }
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setAuthUser(session?.user ?? null);
-      if (session?.user && !isDemoMode) {
-        setCloudSyncStatus('synced');
-        loadEncryptedCloudProfile(session.user.id);
-      }
-    });
+    supabase.auth
+      .getSession()
+      .then(({ data: { session } }) => {
+        setAuthUser(session?.user ?? null);
+        if (session?.user && !isDemoMode) {
+          setCloudSyncStatus('synced');
+          loadEncryptedCloudProfile(session.user.id);
+        }
+      })
+      .catch((err) => {
+        console.warn('[AUTH] Supabase session fetch failed or offline:', err);
+        setCloudSyncStatus('offline_demo');
+      });
 
     const {
       data: { subscription },
@@ -267,6 +288,36 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     });
 
     return () => subscription.unsubscribe();
+  }, [isDemoMode]);
+
+  // Network resiliency: Detect online/offline transitions
+  useEffect(() => {
+    const handleOnline = () => {
+      addToast({
+        type: 'success',
+        title: 'Connection Restored',
+        description: 'Reconnected to secure cloud vault.',
+      });
+      if (isSupabaseConfigured && !isDemoMode) {
+        setCloudSyncStatus('synced');
+      }
+    };
+
+    const handleOffline = () => {
+      addToast({
+        type: 'warning',
+        title: 'Network Offline',
+        description: 'Switched to local encrypted offline sandbox.',
+      });
+      setCloudSyncStatus('offline_demo');
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
   }, [isDemoMode]);
 
   // Load Zero-Knowledge Encrypted profile from Supabase
@@ -342,25 +393,25 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }, 800);
   };
 
-  // Persist mode and state
+  // Persist mode and state defensively (handles private browsing / quota exceptions)
   useEffect(() => {
-    localStorage.setItem('aarthik_mode', isDemoMode ? 'demo' : 'user');
+    safeSetStorage('aarthik_mode', isDemoMode ? 'demo' : 'user');
   }, [isDemoMode]);
 
   useEffect(() => {
-    localStorage.setItem(`${activeStorageKey}_profile`, JSON.stringify(profile));
+    safeSetStorage(`${activeStorageKey}_profile`, JSON.stringify(profile));
   }, [profile, activeStorageKey]);
 
   useEffect(() => {
-    localStorage.setItem(`${activeStorageKey}_extra_household`, JSON.stringify(extraHouseholdItems));
+    safeSetStorage(`${activeStorageKey}_extra_household`, JSON.stringify(extraHouseholdItems));
   }, [extraHouseholdItems, activeStorageKey]);
 
   useEffect(() => {
-    localStorage.setItem(`${activeStorageKey}_impulse`, JSON.stringify(impulseState));
+    safeSetStorage(`${activeStorageKey}_impulse`, JSON.stringify(impulseState));
   }, [impulseState, activeStorageKey]);
 
   useEffect(() => {
-    localStorage.setItem(`${activeStorageKey}_gateway`, JSON.stringify(gatewayState));
+    safeSetStorage(`${activeStorageKey}_gateway`, JSON.stringify(gatewayState));
   }, [gatewayState, activeStorageKey]);
 
   // Toast Helpers

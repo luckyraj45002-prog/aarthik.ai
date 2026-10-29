@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { useFinancialStore } from '../context/FinancialContext';
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
+import { sanitizeInput } from '../server/validation';
+import { normalizeAuthError } from '../lib/authErrorNormalizer';
 import {
   Lock,
   Mail,
@@ -12,6 +14,8 @@ import {
   ArrowRight,
   X,
   Loader2,
+  KeyRound,
+  CheckCircle2,
 } from 'lucide-react';
 
 interface AuthPagesProps {
@@ -33,6 +37,13 @@ export const AuthPages: React.FC<AuthPagesProps> = ({
   // Forgot password modal state
   const [forgotPasswordOpen, setForgotPasswordOpen] = useState(false);
   const [forgotEmail, setForgotEmail] = useState('');
+
+  // Phone OTP modal & flow state
+  const [phoneOtpOpen, setPhoneOtpOpen] = useState(false);
+  const [otpStep, setOtpStep] = useState<'phone' | 'code'>('phone');
+  const [otpPhone, setOtpPhone] = useState('+91 98765 43210');
+  const [otpCode, setOtpCode] = useState('');
+  const [otpLoading, setOtpLoading] = useState(false);
 
   // Login form state
   const [loginIdentifier, setLoginIdentifier] = useState('rohit.kumar@techcorp.in');
@@ -59,42 +70,59 @@ export const AuthPages: React.FC<AuthPagesProps> = ({
 
   const passwordStrength = getPasswordStrength(signupPassword);
 
+  /**
+   * 1. EMAIL & PASSWORD LOGIN
+   */
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    const sanitizedEmail = sanitizeInput(loginIdentifier).toLowerCase();
+    const cleanPassword = loginPassword;
+
+    if (!sanitizedEmail || !cleanPassword) {
+      addToast({
+        type: 'error',
+        title: 'Authentication Failed',
+        description: 'incorrect email or password',
+      });
+      return;
+    }
+
     if (isSupabaseConfigured) {
       try {
         setIsLoading(true);
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email: loginIdentifier,
-          password: loginPassword,
+        const { error } = await supabase.auth.signInWithPassword({
+          email: sanitizedEmail,
+          password: cleanPassword,
         });
+
         if (error) {
           addToast({
             type: 'error',
             title: 'Authentication Failed',
-            description: error.message,
+            description: normalizeAuthError(error),
           });
           setIsLoading(false);
           return;
         }
+
         exitDemoMode();
         onNavigateRoute('app');
         addToast({
           type: 'success',
-          title: `Welcome back!`,
+          title: 'Welcome back!',
           description: 'Loaded your encrypted cloud financial vault.',
         });
       } catch (err: any) {
         addToast({
           type: 'error',
-          title: 'Sign In Error',
-          description: err.message || 'An unexpected error occurred.',
+          title: 'Authentication Failed',
+          description: normalizeAuthError(err),
         });
       } finally {
         setIsLoading(false);
       }
     } else {
-      // Offline fallback / Demo Mode
       enterDemoMode();
       onNavigateRoute('app');
       addToast({
@@ -105,15 +133,22 @@ export const AuthPages: React.FC<AuthPagesProps> = ({
     }
   };
 
+  /**
+   * 2. EMAIL & PASSWORD SIGNUP
+   */
   const handleSignupSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Validate +91 phone
+
+    const sanitizedFullName = sanitizeInput(fullName);
+    const sanitizedEmail = sanitizeInput(email).toLowerCase();
+    const sanitizedPhone = sanitizeInput(mobileNumber);
+
     const phoneRegex = /^(\+91[\-\s]?)?[0]?(91)?[6789]\d{9}$/;
-    if (!phoneRegex.test(mobileNumber.replace(/[\s-]/g, ''))) {
+    if (!sanitizedEmail || !sanitizedFullName || !phoneRegex.test(sanitizedPhone.replace(/[\s-]/g, '')) || signupPassword.length < 8) {
       addToast({
         type: 'error',
-        title: 'Invalid Mobile Number',
-        description: 'Please enter a valid 10-digit Indian mobile number (+91 format).',
+        title: 'Registration Error',
+        description: 'Invalid input provided. Please verify your details.',
       });
       return;
     }
@@ -130,62 +165,233 @@ export const AuthPages: React.FC<AuthPagesProps> = ({
     if (isSupabaseConfigured) {
       try {
         setIsLoading(true);
-        const { data, error } = await supabase.auth.signUp({
-          email,
+        const { error } = await supabase.auth.signUp({
+          email: sanitizedEmail,
           password: signupPassword,
           options: {
             data: {
-              full_name: fullName,
-              phone: mobileNumber,
+              full_name: sanitizedFullName,
+              phone: sanitizedPhone,
               role,
             },
           },
         });
+
         if (error) {
           addToast({
-            type: 'error',
-            title: 'Sign Up Failed',
-            description: error.message,
+            type: 'info',
+            title: 'Registration Submitted',
+            description: 'If registration was successful, please check your email for a verification link.',
           });
           setIsLoading(false);
           return;
         }
-        updateProfile({ name: fullName });
+
+        updateProfile({ name: sanitizedFullName });
         exitDemoMode();
         onNavigateRoute('app');
         addToast({
           type: 'success',
-          title: `Account Created for ${fullName}!`,
-          description: 'Zero-Knowledge encrypted financial vault initialized on Supabase.',
+          title: 'Registration Submitted',
+          description: 'If registration was successful, please check your email for a verification link.',
         });
-      } catch (err: any) {
+      } catch {
         addToast({
-          type: 'error',
-          title: 'Registration Error',
-          description: err.message || 'An unexpected error occurred.',
+          type: 'info',
+          title: 'Registration Submitted',
+          description: 'If registration was successful, please check your email for a verification link.',
         });
       } finally {
         setIsLoading(false);
       }
     } else {
-      updateProfile({ name: fullName });
+      updateProfile({ name: sanitizedFullName });
       exitDemoMode();
       onNavigateRoute('app');
       addToast({
         type: 'success',
-        title: `Account Created for ${fullName}!`,
+        title: `Account Created for ${sanitizedFullName}!`,
         description: 'Your private, encrypted financial vault is initialized.',
       });
     }
   };
 
-  const handleForgotSubmit = (e: React.FormEvent) => {
+  /**
+   * 3. GOOGLE / GITHUB OAUTH
+   */
+  const handleSocialOAuth = async (provider: 'google' | 'github') => {
+    if (isSupabaseConfigured) {
+      try {
+        setIsLoading(true);
+        const { error } = await supabase.auth.signInWithOAuth({
+          provider,
+          options: {
+            redirectTo: `${window.location.origin}/#app`,
+          },
+        });
+        if (error) {
+          addToast({
+            type: 'error',
+            title: 'Authentication Failed',
+            description: normalizeAuthError(error),
+          });
+        }
+      } catch (err: any) {
+        addToast({
+          type: 'error',
+          title: 'Authentication Failed',
+          description: normalizeAuthError(err),
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    } else {
+      enterDemoMode();
+      onNavigateRoute('app');
+      addToast({
+        type: 'info',
+        title: `Signed in with ${provider.toUpperCase()} (Demo Mode)`,
+        description: 'Connected to diagnostic sandbox session.',
+      });
+    }
+  };
+
+  /**
+   * 4. PHONE NUMBER OTP AUTHENTICATION
+   */
+  const handleSendPhoneOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanPhone = otpPhone.replace(/[\s-]/g, '');
+
+    if (!cleanPhone.startsWith('+') || cleanPhone.length < 10) {
+      addToast({
+        type: 'error',
+        title: 'Invalid Format',
+        description: 'Please include country code (e.g. +91 98765 43210)',
+      });
+      return;
+    }
+
+    if (isSupabaseConfigured) {
+      try {
+        setOtpLoading(true);
+        const { error } = await supabase.auth.signInWithOtp({
+          phone: cleanPhone,
+        });
+        if (error) {
+          addToast({
+            type: 'error',
+            title: 'OTP Request Failed',
+            description: normalizeAuthError(error),
+          });
+          return;
+        }
+        setOtpStep('code');
+        addToast({
+          type: 'info',
+          title: 'OTP Sent via SMS',
+          description: `Verification code sent to ${cleanPhone}.`,
+        });
+      } catch (err: any) {
+        addToast({
+          type: 'error',
+          title: 'Authentication Failed',
+          description: normalizeAuthError(err),
+        });
+      } finally {
+        setOtpLoading(false);
+      }
+    } else {
+      setOtpStep('code');
+      addToast({
+        type: 'info',
+        title: 'Demo SMS Code Sent',
+        description: 'Simulated OTP sent. Enter any 6-digit code (e.g. 123456) to proceed.',
+      });
+    }
+  };
+
+  const handleVerifyPhoneOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanPhone = otpPhone.replace(/[\s-]/g, '');
+    const cleanToken = otpCode.trim();
+
+    if (cleanToken.length < 6) {
+      addToast({
+        type: 'error',
+        title: 'Invalid Code',
+        description: 'Please enter the full 6-digit SMS code.',
+      });
+      return;
+    }
+
+    if (isSupabaseConfigured) {
+      try {
+        setOtpLoading(true);
+        const { error } = await supabase.auth.verifyOtp({
+          phone: cleanPhone,
+          token: cleanToken,
+          type: 'sms',
+        });
+        if (error) {
+          addToast({
+            type: 'error',
+            title: 'Authentication Failed',
+            description: normalizeAuthError(error),
+          });
+          return;
+        }
+        setPhoneOtpOpen(false);
+        exitDemoMode();
+        onNavigateRoute('app');
+        addToast({
+          type: 'success',
+          title: 'Phone Verified!',
+          description: 'Successfully authenticated with Phone OTP.',
+        });
+      } catch (err: any) {
+        addToast({
+          type: 'error',
+          title: 'Authentication Failed',
+          description: normalizeAuthError(err),
+        });
+      } finally {
+        setOtpLoading(false);
+      }
+    } else {
+      setPhoneOtpOpen(false);
+      enterDemoMode();
+      onNavigateRoute('app');
+      addToast({
+        type: 'success',
+        title: 'Signed In (Demo)',
+        description: 'Simulated phone login verified.',
+      });
+    }
+  };
+
+  /**
+   * 5. PASSWORD RESET VIA EMAIL
+   */
+  const handleForgotSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setForgotPasswordOpen(false);
+
+    const targetEmail = sanitizeInput(forgotEmail).toLowerCase();
+    if (isSupabaseConfigured && targetEmail) {
+      try {
+        await supabase.auth.resetPasswordForEmail(targetEmail, {
+          redirectTo: `${window.location.origin}/#reset-password`,
+        });
+      } catch {
+        // Silently catch to prevent user enumeration
+      }
+    }
+
     addToast({
       type: 'info',
-      title: 'Reset Link Dispatched',
-      description: `Encrypted password reset token sent to ${forgotEmail}. Valid for 15 minutes.`,
+      title: 'Password Reset',
+      description: "if that email is registered, you'll receive a reset link",
     });
   };
 
@@ -261,17 +467,17 @@ export const AuthPages: React.FC<AuthPagesProps> = ({
             <form onSubmit={handleLoginSubmit} className="space-y-4">
               <div>
                 <label className="block text-xs font-bold text-warm-800 mb-1">
-                  Email or Mobile Number
+                  Email Address
                 </label>
                 <div className="relative">
                   <Mail className="w-4 h-4 text-warm-400 absolute left-3 top-3" />
                   <input
-                    type="text"
+                    type="email"
                     required
                     value={loginIdentifier}
                     onChange={(e) => setLoginIdentifier(e.target.value)}
                     className="w-full pl-9 pr-3.5 py-2.5 clay-input text-xs font-semibold text-warm-900"
-                    placeholder="name@example.com or +91 98765 43210"
+                    placeholder="name@example.com"
                   />
                 </div>
               </div>
@@ -316,7 +522,7 @@ export const AuthPages: React.FC<AuthPagesProps> = ({
                   />
                   <span>Remember me</span>
                 </label>
-                <span className="text-[11px] text-warm-400 font-medium">Client-side session</span>
+                <span className="text-[11px] text-warm-400 font-medium">Encrypted session</span>
               </div>
 
               <button
@@ -331,51 +537,86 @@ export const AuthPages: React.FC<AuthPagesProps> = ({
                   </>
                 ) : (
                   <>
-                    <span>Sign In to Financial Co-Pilot</span>
+                    <span>Sign In with Email</span>
                     <ArrowRight className="w-4 h-4" />
                   </>
                 )}
               </button>
 
-              {/* Social Sign-In Buttons */}
+              {/* Alternative Auth Methods (Google OAuth & Phone Number OTP) */}
               <div className="pt-2">
                 <div className="relative flex py-2 items-center">
                   <div className="flex-grow border-t border-warm-200" />
                   <span className="flex-shrink mx-3 text-[10px] font-bold text-warm-400 uppercase">
-                    Or Continue With
+                    Or Sign In With
                   </span>
                   <div className="flex-grow border-t border-warm-200" />
                 </div>
 
-                <div className="grid grid-cols-2 gap-3 mt-2">
+                <div className="grid grid-cols-3 gap-2 mt-2">
+                  {/* Google OAuth Button */}
                   <button
                     type="button"
-                    onClick={() => {
-                      enterDemoMode();
-                      onNavigateRoute('app');
-                    }}
-                    className="clay-btn-secondary py-2 px-3 text-xs font-bold flex items-center justify-center gap-2"
+                    onClick={() => handleSocialOAuth('google')}
+                    className="clay-btn-secondary py-2.5 px-2 text-xs font-bold flex items-center justify-center gap-1.5"
+                    title="Sign in with Google"
                   >
-                    <span className="font-black text-warm-800">G</span>
-                    <span>Google OAuth</span>
+                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24">
+                      <path
+                        fill="#4285F4"
+                        d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                      />
+                      <path
+                        fill="#34A853"
+                        d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                      />
+                      <path
+                        fill="#FBBC05"
+                        d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+                      />
+                      <path
+                        fill="#EA4335"
+                        d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+                      />
+                    </svg>
+                    <span>Google</span>
                   </button>
 
+                  {/* Phone OTP Button */}
                   <button
                     type="button"
                     onClick={() => {
-                      enterDemoMode();
-                      onNavigateRoute('app');
+                      setPhoneOtpOpen(true);
+                      setOtpStep('phone');
                     }}
-                    className="clay-btn-secondary py-2 px-3 text-xs font-bold flex items-center justify-center gap-2"
+                    className="clay-btn-secondary py-2.5 px-2 text-xs font-bold flex items-center justify-center gap-1.5 text-purple-800"
+                    title="Sign in with Phone Number SMS"
                   >
-                    <Phone className="w-3.5 h-3.5 text-warm-700" />
-                    <span>Phone OTP</span>
+                    <Phone className="w-3.5 h-3.5 text-purple-600" />
+                    <span>Phone</span>
+                  </button>
+
+                  {/* GitHub OAuth Button */}
+                  <button
+                    type="button"
+                    onClick={() => handleSocialOAuth('github')}
+                    className="clay-btn-secondary py-2.5 px-2 text-xs font-bold flex items-center justify-center gap-1.5"
+                    title="Sign in with GitHub"
+                  >
+                    <svg className="w-3.5 h-3.5 fill-current text-[#24292F]" viewBox="0 0 24 24">
+                      <path
+                        fillRule="evenodd"
+                        clipRule="evenodd"
+                        d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"
+                      />
+                    </svg>
+                    <span>GitHub</span>
                   </button>
                 </div>
               </div>
             </form>
           ) : (
-            /* SIGN UP VIEW */
+            /* SIGN UP VIEW (EMAIL & PASSWORD) */
             <form onSubmit={handleSignupSubmit} className="space-y-4">
               <div>
                 <label className="block text-xs font-bold text-warm-800 mb-1">Full Name</label>
@@ -476,7 +717,6 @@ export const AuthPages: React.FC<AuthPagesProps> = ({
                   </button>
                 </div>
 
-                {/* Password Strength Meter */}
                 {signupPassword && (
                   <div className="mt-2 space-y-1">
                     <div className="w-full h-1.5 rounded-full bg-warm-200 overflow-hidden">
@@ -623,6 +863,146 @@ export const AuthPages: React.FC<AuthPagesProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Phone Number OTP Authentication Modal */}
+      {phoneOtpOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in">
+          <div className="clay-card p-6 sm:p-8 max-w-sm w-full space-y-4 relative border border-warm-200">
+            <button
+              onClick={() => {
+                setPhoneOtpOpen(false);
+                setOtpStep('phone');
+                setOtpCode('');
+              }}
+              className="absolute top-4 right-4 text-warm-400 hover:text-warm-800"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="border-b border-warm-100 pb-2 flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-purple-100 flex items-center justify-center text-purple-700">
+                <Phone className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="text-base font-black text-warm-900">
+                  {otpStep === 'phone' ? 'Phone SMS Login' : 'Enter 6-Digit OTP'}
+                </h3>
+                <p className="text-[11px] text-warm-500 font-medium">
+                  {otpStep === 'phone'
+                    ? 'Enter your mobile number with country code'
+                    : `Code sent to ${otpPhone}`}
+                </p>
+              </div>
+            </div>
+
+            {otpStep === 'phone' ? (
+              <form onSubmit={handleSendPhoneOtp} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-warm-800 mb-1">
+                    Mobile Number (e.g. +91 98765 43210)
+                  </label>
+                  <div className="relative">
+                    <Phone className="w-4 h-4 text-warm-400 absolute left-3 top-3" />
+                    <input
+                      type="tel"
+                      required
+                      value={otpPhone}
+                      onChange={(e) => setOtpPhone(e.target.value)}
+                      placeholder="+91 98765 43210"
+                      className="w-full pl-9 pr-3.5 py-2.5 clay-input text-xs font-semibold text-warm-900"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setPhoneOtpOpen(false)}
+                    className="clay-btn-secondary px-3 py-2 text-xs font-bold"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={otpLoading}
+                    className="clay-btn-primary px-4 py-2 text-xs font-black flex items-center gap-1.5"
+                  >
+                    {otpLoading ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <span>Sending SMS...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>Send SMS Code</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <form onSubmit={handleVerifyPhoneOtp} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-warm-800 mb-1">
+                    6-Digit Verification Code
+                  </label>
+                  <div className="relative">
+                    <KeyRound className="w-4 h-4 text-warm-400 absolute left-3 top-3" />
+                    <input
+                      type="text"
+                      required
+                      maxLength={6}
+                      autoFocus
+                      value={otpCode}
+                      onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
+                      placeholder="123456"
+                      className="w-full pl-9 pr-3.5 py-2.5 clay-input text-center tracking-widest text-base font-black text-warm-900"
+                    />
+                  </div>
+                  <p className="text-[10px] text-warm-500 mt-1">
+                    Didn't receive it?{' '}
+                    <button
+                      type="button"
+                      onClick={() => setOtpStep('phone')}
+                      className="text-purple-700 underline font-bold"
+                    >
+                      Change number
+                    </button>
+                  </p>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setOtpStep('phone')}
+                    className="clay-btn-secondary px-3 py-2 text-xs font-bold"
+                  >
+                    Back
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={otpLoading}
+                    className="clay-btn-primary px-4 py-2 text-xs font-black flex items-center gap-1.5"
+                  >
+                    {otpLoading ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <span>Verifying...</span>
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span>Verify &amp; Sign In</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}
