@@ -66,11 +66,11 @@ export const TabBar: React.FC = () => {
       subtitle: 'Causal Engine',
     },
     {
-      id: 'personalized-plan',
+      id: 'expert-plan',
       number: '7',
-      label: 'Personalized Plan',
+      label: 'Expert Plan',
       icon: <FileCheck2 className="w-4 h-4" />,
-      subtitle: advisorVerified ? 'RIA Approved' : 'Core Blueprint',
+      subtitle: advisorVerified ? 'RIA Approved' : 'Why-First Dossier',
     },
   ];
 
