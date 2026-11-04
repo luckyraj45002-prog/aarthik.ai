@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useFinancialStore } from '../context/FinancialContext';
 import {
   UserCircle2,
@@ -21,6 +21,14 @@ interface TabItem {
 export const TabBar: React.FC = () => {
   const { activeTab, setActiveTab, healthScore, gatewayState, advisorVerified } =
     useFinancialStore();
+
+  // Automatically scroll active tab into view so it is never clipped
+  useEffect(() => {
+    const el = document.getElementById(`tab-pill-${activeTab}`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+    }
+  }, [activeTab]);
 
   const tabs: TabItem[] = [
     {
@@ -75,22 +83,27 @@ export const TabBar: React.FC = () => {
   ];
 
   return (
-    <nav className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 pb-2">
-      <div className="flex items-center space-x-2 sm:space-x-3 overflow-x-auto py-2 no-scrollbar scroll-smooth">
+    <div className="w-full sticky top-[57px] z-30 bg-slate-50/95 backdrop-blur-md border-b border-slate-200/80 shadow-xs">
+      {/* 1. Primary Smooth Horizontally Swipeable Tab Bar */}
+      <nav
+        className="w-full overflow-x-auto flex items-center justify-start gap-2.5 px-4 py-3 bg-slate-50/90 no-scrollbar scroll-smooth snap-x"
+        aria-label="Features navigation"
+      >
         {tabs.map((tab) => {
           const isActive = activeTab === tab.id;
           return (
             <button
               key={tab.id}
+              id={`tab-pill-${tab.id}`}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex-shrink-0 flex items-center gap-2.5 px-4 py-2.5 rounded-2xl transition-all select-none text-left ${
+              className={`shrink-0 snap-start min-w-max flex items-center gap-2.5 px-3.5 py-2 rounded-2xl text-left transition-all select-none ${
                 isActive
                   ? 'bg-[#7C3AED] text-white shadow-clay-btn scale-[1.02]'
                   : 'bg-white hover:bg-[#FAF6F0] text-warm-800 border border-[#E4DACF] shadow-clay-sm hover:scale-[1.01]'
               }`}
             >
               <div
-                className={`w-6 h-6 rounded-xl flex items-center justify-center text-xs font-black ${
+                className={`w-6 h-6 rounded-xl flex items-center justify-center text-xs font-black shrink-0 ${
                   isActive
                     ? 'bg-white/20 text-white'
                     : 'bg-warm-100 text-warm-700'
@@ -110,7 +123,31 @@ export const TabBar: React.FC = () => {
             </button>
           );
         })}
+      </nav>
+
+      {/* 2. Compact 1-Tap Quick Jump Bar for Instant Mobile Access to All 7 Features */}
+      <div className="w-full max-w-7xl mx-auto px-3 py-1.5 flex items-center justify-between gap-1 border-t border-slate-200/60 overflow-x-auto no-scrollbar">
+        {tabs.map((tab) => {
+          const isActive = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex-1 min-w-[42px] py-1 px-1 rounded-xl text-center transition-all ${
+                isActive
+                  ? 'bg-[#7C3AED] text-white font-black shadow-xs ring-1 ring-purple-300 scale-[1.02]'
+                  : 'bg-white hover:bg-slate-100 text-slate-600 border border-slate-200/80 font-bold'
+              }`}
+              title={`${tab.number}. ${tab.label} (${tab.subtitle})`}
+            >
+              <div className="text-[11px] font-black leading-none">{tab.number}</div>
+              <div className="text-[8px] sm:text-[9px] truncate tracking-tighter opacity-90 leading-tight mt-0.5">
+                {tab.label.split(' ')[0]}
+              </div>
+            </button>
+          );
+        })}
       </div>
-    </nav>
+    </div>
   );
 };

@@ -99,7 +99,7 @@ export const App: React.FC = () => {
     // Default Main App Dashboard (Protected Route)
     return (
       <ProtectedRoute onNavigateLogin={() => navigateTo('login')}>
-        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <main className="w-full max-w-[480px] sm:max-w-7xl mx-auto min-h-[100dvh] overflow-x-hidden pb-28 px-3 sm:px-4 pt-2 sm:pt-4">
           {activeTab === 'profile' && <ProfileModule />}
           {activeTab === 'time-machine' && <TimeMachineModule />}
           {activeTab === 'household' && <HouseholdModule />}
@@ -115,7 +115,7 @@ export const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#F8F4EC] text-[#2D2118]">
+    <div className="w-full min-h-[100dvh] flex flex-col bg-[#F8F4EC] text-[#2D2118] overflow-x-hidden">
       {/* Header */}
       <Header
         onOpenAdvisorModal={() => setIsAdvisorModalOpen(true)}
@@ -126,7 +126,7 @@ export const App: React.FC = () => {
       {currentRoute === 'app' && <TabBar />}
 
       {/* Main Content Area */}
-      <div className="flex-1">{renderContent()}</div>
+      <div className="flex-1 w-full overflow-x-hidden">{renderContent()}</div>
 
       {/* Global Persistent Footer */}
       <Footer onNavigateRoute={navigateTo} />

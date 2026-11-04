@@ -44,90 +44,79 @@ export const Header: React.FC<HeaderProps> = ({ onOpenAdvisorModal, onNavigateRo
   }, []);
 
   return (
-    <header className="sticky top-0 z-40 bg-[#FAF7F2]/95 backdrop-blur-md border-b border-[#E7DFD5] transition-all">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-18 py-3.5">
-          {/* ============================================================== */}
-          {/* LEFT: Official 3D Purple Arrow Logo + Wordmark + Subtitle     */}
-          {/* ============================================================== */}
-          <div
-            className="flex items-center gap-3 cursor-pointer select-none group transition-transform duration-160 ease-out active:scale-[0.97]"
-            onClick={() => onNavigateRoute('app')}
-          >
-            <div className="w-11 h-11 rounded-2xl bg-white border border-[#E4D9CC] shadow-clay-sm p-1.5 flex items-center justify-center overflow-hidden transition-all duration-200 group-hover:scale-105 group-hover:shadow-clay-md">
-              <img
-                src="./aarthik-logo.png"
-                alt="Aarthik.ai 3D Purple Ascending Rupee Arrow"
-                className="w-full h-full object-contain filter drop-shadow-sm"
-              />
-            </div>
-            <div className="flex flex-col">
-              <div className="flex items-baseline">
-                <span className="text-2xl font-black tracking-tight text-[#0F172A]">
-                  Aarthik<span className="text-[#7C3AED]">.ai</span>
-                </span>
-              </div>
-              <span className="text-[10px] tracking-wider uppercase font-bold text-[#7C3AED] -mt-0.5">
-                DIAGNOSTIC FINANCIAL CO-PILOT
-              </span>
-            </div>
+    <header className="w-full px-3 py-2.5 flex items-center justify-between gap-2 bg-white/95 backdrop-blur-md sticky top-0 z-40 border-b border-slate-200/80 pt-[max(0.6rem,env(safe-area-inset-top))] transition-all">
+      <div className="w-full max-w-7xl mx-auto flex items-center justify-between gap-2">
+        {/* ============================================================== */}
+        {/* LEFT: Official Logo + Wordmark + Subtitle                     */}
+        {/* ============================================================== */}
+        <div
+          className="flex items-center gap-2 cursor-pointer select-none group transition-transform active:scale-[0.98] shrink-0"
+          onClick={() => onNavigateRoute('app')}
+        >
+          <img
+            src="/logo.png"
+            onError={(e) => {
+              (e.target as HTMLImageElement).src = './aarthik-logo.png';
+            }}
+            alt="Aarthik.ai Logo"
+            className="w-10 h-10 object-contain mix-blend-multiply shrink-0"
+          />
+          <div className="flex flex-col min-w-0">
+            <span className="text-lg font-extrabold tracking-tight text-slate-900 leading-tight">
+              Aarthik<span className="text-violet-600">.ai</span>
+            </span>
+            <span className="text-[10px] font-semibold text-violet-600 tracking-wider block">
+              DIAGNOSTIC FINANCIAL CO-PILOT
+            </span>
           </div>
+        </div>
 
-          {/* ============================================================== */}
-          {/* RIGHT: Status Badge, Reset to Default, Account Dropdown        */}
-          {/* ============================================================== */}
-          <div className="flex items-center gap-2.5 sm:gap-3.5">
-            {/* User Profile / Auth Status Badge (Live Cloud Sync vs. Offline Demo) */}
-            {isCloudSyncActive ? (
-              <div
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200/80 shadow-xs"
-                title="Continuous encrypted synchronization with Supabase cloud vault"
-              >
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                </span>
-                <span className="hidden sm:inline">Live Cloud Sync</span>
-                <span className="sm:hidden">Live</span>
-              </div>
-            ) : (
-              <div
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-purple-50 text-[#7C3AED] border border-purple-200/80 shadow-xs"
-                title="Running locally with Zero-Knowledge encryption in offline sandbox mode"
-              >
-                <ShieldCheck className="w-3.5 h-3.5 text-[#7C3AED]" />
-                <span className="hidden sm:inline">Offline Demo</span>
-                <span className="sm:hidden">Demo</span>
-              </div>
-            )}
-
-            {/* Single Minimal "Reset to Default" Button */}
-            <button
-              onClick={resetToDefault}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-[#DACFBF] hover:bg-[#F6F0E7] text-[#0F172A] text-xs font-bold shadow-clay-sm transition-all hover:scale-[1.02] active:scale-95"
-              title="Reset all mathematical solvers & variables to default baseline"
+        {/* ============================================================== */}
+        {/* RIGHT: Compact Demo/Live Status, Reset, and Account Avatar    */}
+        {/* ============================================================== */}
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          {/* User Profile / Auth Status Badge */}
+          {isCloudSyncActive ? (
+            <div
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200/80 shrink-0"
+              title="Continuous encrypted synchronization with Supabase cloud vault"
             >
-              <RotateCcw className="w-3.5 h-3.5 text-[#7C3AED]" />
-              <span className="hidden sm:inline">Reset to Default</span>
-              <span className="sm:hidden">Reset</span>
-            </button>
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
+              </span>
+              <span className="hidden sm:inline">Live Cloud Sync</span>
+              <span className="sm:hidden">Live</span>
+            </div>
+          ) : (
+            <div
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-purple-50 text-violet-600 border border-purple-200/80 shrink-0"
+              title="Running locally with Zero-Knowledge encryption in offline sandbox mode"
+            >
+              <ShieldCheck className="w-3.5 h-3.5 text-violet-600" />
+              <span>Demo</span>
+            </div>
+          )}
 
-            {/* Account / Sign Out Dropdown */}
-            <div className="relative" ref={menuRef}>
-              <button
-                onClick={() => setUserMenuOpen(!userMenuOpen)}
-                className="flex items-center gap-1.5 p-1.5 sm:px-2.5 sm:py-1.5 rounded-2xl bg-white border border-[#DACFBF] shadow-clay-sm hover:bg-[#F6F0E7] transition-all focus:outline-none"
-                aria-label="User account menu"
-              >
-                <div className="w-7 h-7 rounded-xl bg-gradient-to-br from-[#7C3AED] to-[#5B21B6] flex items-center justify-center text-white font-black text-xs shadow-xs">
-                  {profile.name ? profile.name.charAt(0).toUpperCase() : 'A'}
-                </div>
-                <ChevronDown
-                  className={`w-3.5 h-3.5 text-warm-600 transition-transform duration-200 hidden sm:block ${
-                    userMenuOpen ? 'rotate-180' : ''
-                  }`}
-                />
-              </button>
+          {/* Single Minimal "Reset to Default" Button */}
+          <button
+            onClick={resetToDefault}
+            className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-xs transition-all shrink-0 active:scale-95"
+            title="Reset all mathematical solvers & variables to default baseline"
+          >
+            <RotateCcw className="w-3 h-3 text-violet-600" />
+            <span>Reset</span>
+          </button>
+
+          {/* Account / Sign Out Dropdown */}
+          <div className="relative shrink-0" ref={menuRef}>
+            <button
+              onClick={() => setUserMenuOpen(!userMenuOpen)}
+              className="flex items-center justify-center w-8 h-8 rounded-xl bg-gradient-to-br from-violet-600 to-purple-700 text-white font-bold text-xs shadow-xs focus:outline-none transition-transform active:scale-95 shrink-0"
+              aria-label="User account menu"
+            >
+              {profile.name ? profile.name.charAt(0).toUpperCase() : 'R'}
+            </button>
 
               {userMenuOpen && (
                 <div className="absolute right-0 mt-2 w-72 bg-white rounded-2xl shadow-clay-lg border border-[#E7DFD5] py-2.5 z-50 text-sm animate-in fade-in zoom-in-95 duration-150">
@@ -237,7 +226,6 @@ export const Header: React.FC<HeaderProps> = ({ onOpenAdvisorModal, onNavigateRo
             </div>
           </div>
         </div>
-      </div>
-    </header>
+      </header>
   );
 };

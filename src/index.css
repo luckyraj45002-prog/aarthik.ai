@@ -154,3 +154,13 @@ input[type="range"] {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+/* Safe area inset support for mobile screens */
+@supports (padding: max(0px)) {
+  .pt-safe {
+    padding-top: max(0.75rem, env(safe-area-inset-top));
+  }
+  .pb-safe {
+    padding-bottom: max(7rem, env(safe-area-inset-bottom));
+  }
+}

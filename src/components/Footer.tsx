@@ -13,13 +13,14 @@ export const Footer: React.FC<FooterProps> = ({ onNavigateRoute }) => {
           {/* Brand Col */}
           <div className="md:col-span-1 space-y-3">
             <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-white border border-[#E0D5C7] shadow-sm p-1 flex items-center justify-center">
-                <img
-                  src="./aarthik-logo.png"
-                  alt="Aarthik.ai Logo"
-                  className="w-full h-full object-contain"
-                />
-              </div>
+              <img
+                src="/logo.png"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = './aarthik-logo.png';
+                }}
+                alt="Aarthik.ai Logo"
+                className="w-9 h-9 object-contain mix-blend-multiply shrink-0"
+              />
               <div className="flex flex-col">
                 <span className="text-xl font-black text-[#0F172A]">
                   Aarthik<span className="text-[#7C3AED]">.ai</span>

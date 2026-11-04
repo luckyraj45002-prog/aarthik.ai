@@ -150,7 +150,7 @@ export const ExpertPlan: React.FC<ExpertPlanProps> = ({ onOpenAdvisorModal }) =>
     <div className="space-y-8 animate-in fade-in duration-300">
       
       {/* 1. Header & Fiduciary Trust Badge */}
-      <div className="bg-gradient-to-r from-warm-100 via-white to-warm-50 p-6 sm:p-8 rounded-3xl border border-warm-200 shadow-clay-sm flex flex-col md:flex-row md:items-center justify-between gap-6">
+      <div className="bg-gradient-to-r from-warm-100 via-white to-warm-50 p-4 sm:p-8 rounded-3xl border border-warm-200 shadow-clay-sm flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-2">
             {/* Pill Badge: Expert-approved options (emerald badge) */}
@@ -213,9 +213,9 @@ export const ExpertPlan: React.FC<ExpertPlanProps> = ({ onOpenAdvisorModal }) =>
               {/* Accordion Header Row */}
               <div
                 onClick={() => toggleItem(item.id)}
-                className="p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3 cursor-pointer select-none"
+                className="p-4 sm:p-6 flex flex-row items-center justify-between gap-3 cursor-pointer select-none"
               >
-                <div className="flex items-center gap-3.5">
+                <div className="flex items-center gap-3">
                   <div
                     className={`w-9 h-9 rounded-2xl flex items-center justify-center text-sm font-black transition-colors ${
                       isExpanded
@@ -301,7 +301,7 @@ export const ExpertPlan: React.FC<ExpertPlanProps> = ({ onOpenAdvisorModal }) =>
       </div>
 
       {/* 3. Draft & Verify Fiduciary Card at Bottom */}
-      <div className="bg-gradient-to-br from-warm-100 via-white to-purple-50 rounded-3xl p-6 sm:p-8 border border-warm-200 shadow-clay-sm flex flex-col md:flex-row md:items-center justify-between gap-6">
+      <div className="bg-gradient-to-br from-warm-100 via-white to-purple-50 rounded-3xl p-5 sm:p-8 border border-warm-200 shadow-clay-sm flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="space-y-1.5 max-w-2xl">
           <div className="flex items-center gap-2">
             <ShieldCheck className="w-5 h-5 text-[#7C3AED]" />
@@ -330,3 +330,4 @@ export const ExpertPlan: React.FC<ExpertPlanProps> = ({ onOpenAdvisorModal }) =>
 };
 
 export default ExpertPlan;
+
